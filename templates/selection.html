@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Подбор книги — Сфера Мысли{% endblock %}
+{% block content %}
+<section class="selection-hero">
+  <h1>Подобрать книгу под вас</h1>
+  <p class="lead">Мы подберём интересные для вас книги по вашим увлечениям и психотипу. Расскажите о своём настроении и любимых жанрах, а мы найдём историю, которая отзовётся в сердце и поможет отвлечься от суеты.</p>
+  <div class="wizard glass-card" id="wizard">
+    <button class="btn btn-primary btn-lg" type="button" id="wizStart">Приступим!</button>
+  </div>
+  <div id="wizResults" class="wiz-results" hidden>
+    <h2>Эти книги для вас</h2>
+    <ul class="why-list" id="wizWhy"></ul>
+    <div class="grid-3" id="wizGrid"></div>
+    <div class="btn-row center"><button class="btn btn-outline" type="button" id="wizAgain">Подобрать заново</button><a class="btn btn-ghost" href="/catalog">Открыть весь каталог</a></div>
+  </div>
+</section>
+
+<div class="features-row">
+  <div class="feature-item reveal"><div class="feature-circle">📚</div><span>Книги, которые знают вас</span></div>
+  <div class="feature-item reveal"><div class="feature-circle">⏳</div><span>Время на вашей стороне</span></div>
+  <div class="feature-item reveal"><div class="feature-circle">🧭</div><span>Легко найдите путь</span></div>
+</div>
+
+<div class="categories-divider"><div class="line"></div><span>Категории книг</span><div class="line"></div></div>
+<div class="categories-links">
+  <a href="/new">Новинки</a>
+  <a href="/catalog">Каталог</a>
+  <a href="/events">Мероприятия</a>
+  <a href="/news">Новости</a>
+</div>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Вход' if mode == 'login' else 'Регистрация' }} — Сфера Мысли{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-card glass-card">
+    <div class="tabs" role="tablist">
+      <a href="/login?next={{ next|urlencode }}" class="{{ 'on' if mode == 'login' }}" role="tab">Вход</a>
+      <a href="/register?next={{ next|urlencode }}" class="{{ 'on' if mode == 'register' }}" role="tab">Регистрация</a>
+    </div>
+
+    {% if mode == 'login' %}
+    <h1>Вход в систему</h1>
+    <p class="lead">Рады видеть вас снова 👋</p>
+    <form method="post" id="authForm">
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="form-group"><label for="username">Имя пользователя</label>
+        <input id="username" type="text" name="username" required autocomplete="username" autofocus value="{{ form.get('username', '') }}"></div>
+      <div class="form-group"><label for="password">Пароль</label>
+        <div class="pw"><input id="password" type="password" name="password" required autocomplete="current-password"><button type="button" class="pw-toggle" data-pw>Показать</button></div></div>
+      <button type="submit" class="btn btn-primary btn-block">Войти</button>
+    </form>
+    <p class="auth-switch">Нет аккаунта? <a href="/register?next={{ next|urlencode }}">Зарегистрироваться</a></p>
+    <button type="button" class="demo-fill" data-demo>Заполнить демо-аккаунт: demo / demo123</button>
+
+    {% else %}
+    <h1>Регистрация</h1>
+    <p class="lead">Создайте свой аккаунт читателя</p>
+    <form method="post" id="authForm">
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="form-group"><label for="username">Имя пользователя</label>
+        <input id="username" type="text" name="username" required pattern="[A-Za-z0-9_.\-]{3,24}" autocomplete="username" autofocus value="{{ form.get('username', '') }}">
+        <small>3–24 символа: латиница, цифры, точка, дефис, подчёркивание</small></div>
+      <div class="form-group"><label for="name">Ваше имя</label>
+        <input id="name" type="text" name="name" required maxlength="40" autocomplete="given-name" value="{{ form.get('name', '') }}"></div>
+      <div class="form-group"><label for="email">Почта (необязательно)</label>
+        <input id="email" type="email" name="email" autocomplete="email" value="{{ form.get('email', '') }}"></div>
+      <div class="form-group"><label for="password">Пароль (минимум 6 символов)</label>
+        <div class="pw"><input id="password" type="password" name="password" required minlength="6" autocomplete="new-password"><button type="button" class="pw-toggle" data-pw>Показать</button></div>
+        <div class="strength" id="strength"><i></i><i></i><i></i><i></i></div></div>
+      <div class="form-group"><label for="confirm">Повторите пароль</label>
+        <input id="confirm" type="password" name="confirm" required autocomplete="new-password"></div>
+      <button type="submit" class="btn btn-primary btn-block">Создать аккаунт</button>
+    </form>
+    <p class="auth-switch">Уже есть аккаунт? <a href="/login?next={{ next|urlencode }}">Войти</a></p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

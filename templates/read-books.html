@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Прочитанные книги — Сфера Мысли{% endblock %}
+{% block content %}
+<div class="page-head center"><h1>Прочитанные книги</h1></div>
+
+{% if read_ids %}
+<div class="coverflow" data-cf='{{ read_ids|tojson }}' tabindex="0" aria-label="Прочитанные книги"></div>
+
+<div class="stat-chips">
+  <div class="stat-chip reveal"><i class="dot green"></i><span><small>Любимый жанр</small><b>{{ fav_genre }}</b></span></div>
+  <div class="stat-chip reveal"><i class="dot lime"></i><span><small>Любимый автор</small><b>{{ fav_author }}</b></span></div>
+  <div class="stat-chip reveal"><i class="dot red"></i><span><small>Избранные книги</small><b>{{ fav_ids|length }}</b></span></div>
+</div>
+
+<h2>Статистика по жанрам</h2>
+<div class="chart-box reveal">
+  <ul class="y-axis">{% for t in axis %}<li>{{ t }}</li>{% endfor %}</ul>
+  <div class="chart">
+    {% for b in bars %}
+    <div class="bar c{{ loop.index0 }}" style="--h:{{ b.h }}%;--d:{{ loop.index0 * 0.12 }}s"><b>{{ b.n }}</b><span>{{ b.name }}</span></div>
+    {% endfor %}
+  </div>
+</div>
+
+{% if fav_ids %}
+<div class="section-head"><h2>Избранные книги</h2></div>
+<div class="grid-3 book-grid" data-books='{{ fav_ids|tojson }}'></div>
+{% endif %}
+
+{% else %}
+<div class="empty-state big">
+  <p>Прочитанных книг пока нет. Возьмите книгу, прочитайте и сдайте её, и здесь появится ваша статистика.</p>
+  <a class="btn btn-primary" href="/catalog">Выбрать книгу</a>
+</div>
+{% endif %}
+{% endblock %}

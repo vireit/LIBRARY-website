@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cover, heart %}
+{% block title %}Мои книги — Сфера Мысли{% endblock %}
+
+{% macro loan_card(it, overdue=false) %}
+<article class="glass-card loan-card tilt reveal {{ 'overdue-card' if overdue }}">
+  <div class="book-card-image" data-book="{{ it.book.id }}">
+    {{ cover(it.book) }}
+    {{ heart('book', it.book.id) }}
+    <button class="card-menu" type="button" aria-label="О книге">•••</button>
+  </div>
+  <div class="book-card-info">
+    <h3>{{ it.book.title }}</h3>
+    <p class="line">{{ it.book.line }}</p>
+    <div class="book-meta"><span>{{ it.book.author }}</span><span>{{ it.book.year }}</span></div>
+  </div>
+  {% if overdue %}
+    <p class="loan-term">Срок: просрочено на {{ it.over_txt }}</p>
+    <div class="progress"><i class="red" style="--w:100%"></i></div>
+    <span class="days-badge red">Нужно сдать</span>
+    <div class="btn-row"><button class="btn btn-primary" type="button" data-return="{{ it.id }}">Сдать книгу</button></div>
+  {% else %}
+    <p class="loan-term">Срок: осталось {{ it.days_txt }} <small>до {{ it.due }}</small></p>
+    <div class="progress"><i class="{{ it.tone }}" style="--w:{{ it.pct }}%"></i></div>
+    <span class="days-badge {{ it.tone }}">{{ it.days_txt }} осталось</span>
+    <div class="btn-row">
+      <button class="btn btn-outline" type="button" data-extend="{{ it.id }}" {{ 'disabled' if it.extended }}>{{ 'Уже продлено' if it.extended else 'Продлить срок' }}</button>
+      <button class="btn btn-ghost" type="button" data-return="{{ it.id }}">Сдать</button>
+    </div>
+  {% endif %}
+</article>
+{% endmacro %}
+
+{% block content %}
+<h1 class="status-title">Текущий статус: <span>{{ status }}</span></h1>
+
+{% if not has_any %}
+  <div class="empty-state big">
+    <p>Здесь появятся книги, которые вы возьмёте в библиотеке.</p>
+    <a class="btn btn-primary" href="/catalog">Выбрать книгу в каталоге</a>
+  </div>
+{% endif %}
+
+{% if active %}
+<div class="grid-3">{% for it in active %}{{ loan_card(it) }}{% endfor %}</div>
+{% endif %}
+
+{% if overdue %}
+<section class="overdue-section">
+  <h2>Нужно обязательно сдать!</h2>
+  <div class="overdue-layout">
+    <div class="grid-2">{% for it in overdue %}{{ loan_card(it, true) }}{% endfor %}</div>
+  </div>
+</section>
+{% endif %}
+
+<section class="stats-panel reveal">
+  <div class="donut" aria-hidden="true">
+    <svg viewBox="0 0 200 200">
+      {% for r in rings %}<circle class="ring-bg" cx="100" cy="100" r="{{ r.r }}"/>{% endfor %}
+      {% for r in rings %}<circle class="ring {{ r.key }}" cx="100" cy="100" r="{{ r.r }}" pathLength="100" stroke-dasharray="{{ r.pct }} 100" style="--p:{{ r.pct }}"/>{% endfor %}
+    </svg>
+    <div class="donut-center">{{ current_user.name[0] }}</div>
+  </div>
+  <ul class="chart-legend">
+    {% for r in rings %}
+    <li class="legend-item"><i class="legend-dot {{ r.key }}"></i><span><b>{{ r.label }}</b><small>{{ r.note }}</small></span></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

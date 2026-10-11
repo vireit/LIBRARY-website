@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Каталог — Сфера Мысли{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Каталог книг</h1>
+  <p class="lead">Найдите свою следующую любимую историю. Ищите по названию, автору, жанру или году.</p>
+</div>
+
+<div class="filters">
+  <select class="filter-select" id="genreFilter" aria-label="Жанр">
+    <option value="">Все жанры</option>
+    {% for g in genres %}<option value="{{ g }}">{{ g }}</option>{% endfor %}
+  </select>
+  <select class="filter-select" id="authorFilter" aria-label="Автор">
+    <option value="">Все авторы</option>
+    {% for a in authors %}<option value="{{ a }}">{{ a }}</option>{% endfor %}
+  </select>
+  <select class="filter-select" id="decadeFilter" aria-label="Годы издания">
+    <option value="">Все годы</option>
+    {% for d in decades %}<option value="{{ d }}">{{ d }}-е</option>{% endfor %}
+  </select>
+  <button class="btn btn-ghost" type="button" id="resetFilters" hidden>Сбросить</button>
+</div>
+
+<div class="search-bar">
+  <input type="search" id="searchInput" placeholder="Поиск, например: «Толстой роман» или «1984 Оруэлл»" autocomplete="off">
+  <span class="search-icon" aria-hidden="true">⌕</span>
+</div>
+
+<div class="search-meta" id="searchMeta" aria-live="polite">Всего в каталоге: <strong>{{ total }}</strong> {{ 'книга' if total % 10 == 1 and total != 11 else 'книги' if total % 10 in (2, 3, 4) and total not in (12, 13, 14) else 'книг' }}</div>
+
+<div class="grid-3" id="booksGrid" data-catalog></div>
+{% endblock %}

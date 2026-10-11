@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cover, heart %}
+{% block title %}Сфера Мысли — Главная{% endblock %}
+{% block content %}
+<section class="hero">
+  <div class="hero-text">
+    <h1>В библиотеке время замирает, чтобы вы успели прочесть целую жизнь</h1>
+    <p class="lead">Мы собрали для вас истории, которые достойны того, чтобы ради них замедлиться. Пусть каждая из них станет частью вашего пути.</p>
+    <div class="btn-row">
+      <a class="btn btn-primary btn-lg" href="/selection">Подобрать книгу</a>
+      <a class="btn btn-ghost btn-lg" href="/catalog">Открыть каталог</a>
+    </div>
+  </div>
+  <div class="hero-art">
+    <div class="poster"><img src="/static/logo.png" alt="Областная библиотека «Сфера Мысли»: парящая книга в читальном зале"></div>
+  </div>
+</section>
+
+<section class="featured glass-card reveal" aria-label="Книга дня">
+  <div class="feat-cover">{{ cover(featured) }}</div>
+  <div class="feat-body">
+    <div class="chips"><span class="chip">{{ featured.genre }}</span><span class="chip">{{ featured.year }} год</span><span class="chip">Книга дня</span></div>
+    <h2>{{ featured.title }}</h2>
+    <p class="line">{{ featured.line }}</p>
+    <p>{{ featured.desc }}</p>
+    <div class="btn-row">
+      <button class="btn btn-primary" type="button" data-book="{{ featured.id }}">Читать</button>
+      {{ heart('book', featured.id) }}
+    </div>
+  </div>
+</section>
+
+<div class="features-row">
+  <div class="feature-item reveal"><div class="feature-circle">📚</div><span>Книги, которые знают вас</span></div>
+  <div class="feature-item reveal"><div class="feature-circle">⏳</div><span>Время на вашей стороне</span></div>
+  <div class="feature-item reveal"><div class="feature-circle">🧭</div><span>Легко найдите путь</span></div>
+</div>
+
+<div class="section-head"><h2>Рекомендовано вам</h2><a href="/selection">Подобрать точнее</a></div>
+<div class="grid-3 book-grid" data-books='{{ reco|tojson }}'></div>
+
+<div class="section-head"><h2>Новинки месяца</h2><a href="/new">Все новинки</a></div>
+<div class="grid-3 book-grid" data-books='{{ new|tojson }}'></div>
+
+<div class="section-head"><h2>Хиты и выбор читателей</h2><a href="/catalog">В каталог</a></div>
+<div class="grid-3 book-grid" data-books='{{ hits|tojson }}'></div>
+
+<div class="section-head"><h2>Тематические подборки</h2></div>
+<div class="collections">
+  {% for c in collections %}
+  <a class="collection glass-card tilt reveal" href="/catalog?genre={{ c.genre|urlencode }}">
+    <h3>{{ c.genre }}</h3>
+    <p>{{ c.text }}</p>
+    <span class="count">{{ c.count }} книг</span>
+  </a>
+  {% endfor %}
+</div>
+
+<div class="section-head"><h2>Скоро в наличии</h2></div>
+<div class="grid-3 book-grid" data-books='{{ soon|tojson }}'></div>
+
+<div class="categories-divider"><div class="line"></div><span>Категории книг</span><div class="line"></div></div>
+<div class="categories-links">
+  <a href="/new">Новинки</a>
+  <a href="/catalog">Каталог</a>
+  <a href="/events">Мероприятия</a>
+  <a href="/news">Новости</a>
+</div>
+{% endblock %}

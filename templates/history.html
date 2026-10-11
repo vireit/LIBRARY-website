@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}История — Сфера Мысли{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>История библиотеки</h1>
+  <p class="year-note">Год основания 1875</p>
+  <p class="lead">Наша библиотека открыла свои двери как небольшая городская читальня. За прошедшие полтора века она превратилась в современный культурный и информационный центр, объединяющий поколения любителей литературы, исследователей и студентов.</p>
+</div>
+
+<ol class="timeline reveal">
+  {% for year, title, text in timeline %}
+  <li class="tl-point">
+    <span class="tl-dot"></span>
+    <span class="year">{{ year }} год</span>
+    <b class="event">{{ title }}</b>
+    <span class="tl-text">{{ text }}</span>
+  </li>
+  {% endfor %}
+</ol>
+
+<div class="section-head"><h2>Архивные материалы</h2></div>
+<div class="grid-3">
+  {% for d in docs %}
+  <div class="glass-card doc-card tilt reveal">
+    <h3>{{ d.title.split(',')[0] }}</h3>
+    <p class="doc-period">{{ d.title.split(', ')[1] if ', ' in d.title }}</p>
+    <div class="btn-row">
+      <button class="btn btn-outline" type="button" data-info="docs:{{ d.id }}">Открыть</button>
+      <a class="btn btn-outline btn-icon" href="/doc/{{ d.id }}.txt" download aria-label="Скачать">⬇</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>App.info('docs', {{ docs|tojson }});</script>
+{% endblock %}

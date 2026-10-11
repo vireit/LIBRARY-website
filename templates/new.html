@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Новинки — Сфера Мысли{% endblock %}
+{% block content %}
+<div class="page-head center">
+  <h1>Новинки</h1>
+  <p class="lead">Книги, которые недавно появились в фонде. Листайте стрелками, клавишами или свайпом.</p>
+</div>
+
+<div class="coverflow" data-cf='{{ ids|tojson }}' tabindex="0" aria-label="Слайдер новинок"></div>
+
+<div class="section-head"><h2>Все новинки</h2><a href="/catalog">В каталог</a></div>
+<div class="grid-3 book-grid" data-books='{{ ids|tojson }}'></div>
+{% endblock %}

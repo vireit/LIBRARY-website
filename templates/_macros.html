@@ -1,0 +1,7 @@
+{% macro cover(b) -%}
+<div class="cover" style="--h:{{ b.hue }}"><span class="cv-top">{{ b.author }}</span><span class="cv-title">{{ b.title }}</span><i class="cv-orn"></i><span class="cv-year">{{ b.year }}</span></div>
+{%- endmacro %}
+
+{% macro heart(kind, id) -%}
+<button class="heart" type="button" data-fav="{{ kind }}:{{ id }}" aria-label="В избранное">♡</button>
+{%- endmacro %}

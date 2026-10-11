@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "_macros.html" import heart %}
+{% block title %}Мероприятия — Сфера Мысли{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Мероприятия 📢</h1>
+  <p class="lead">Каждую неделю с пятницы по воскресенье. Вход свободный, места в залах ограничены.</p>
+</div>
+
+<div class="grid-3">
+  {% for e in events %}
+  <article class="glass-card info-card tilt reveal">
+    <div class="info-top"><span class="tag-pill">{{ e.tag }}</span><span class="when">{{ e.date }}, {{ e.time }}</span></div>
+    <h3>{{ e.title }}</h3>
+    <p class="where">{{ e.place }}</p>
+    <div class="event-actions">
+      <button class="btn btn-outline" type="button" data-info="events:{{ e.id }}">Подробнее</button>
+      {{ heart('event', e.id) }}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>App.info('events', {{ events|tojson }});</script>
+{% endblock %}
