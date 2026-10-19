@@ -9,13 +9,15 @@
 import os
 import random
 import re
+import secrets
 import sqlite3
 from collections import Counter
 from datetime import date, timedelta
 from functools import wraps
 
 from flask import (Flask, Response, abort, flash, g, get_flashed_messages,
-                   jsonify, redirect, render_template, request, session)
+                   jsonify, redirect, render_template, request, send_from_directory,
+                   session)
 from werkzeug.security import check_password_hash, generate_password_hash
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -28,6 +30,12 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
 )
 app.json.ensure_ascii = False
+
+# аватарки хранятся файлами в папке uploads/avatars
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads", "avatars")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.config["MAX_CONTENT_LENGTH"] = 3 * 1024 * 1024   # запрос целиком не больше 3 МБ
+AVATAR_MAX = 2 * 1024 * 1024                         # сама аватарка не больше 2 МБ
 
 LOAN_DAYS = 14      # на сколько дней выдаётся книга
 EXTEND_DAYS = 7     # на сколько дней можно продлить (один раз)
@@ -118,6 +126,20 @@ def days_txt(n):
     return f"{n} {plural(n, ('день', 'дня', 'дней'))}"
 
 
+def reader_status(reads, on_hands):
+    if reads >= 25:
+        return "Заядлый читатель"
+    if on_hands >= 3:
+        return "Сфокусированный читатель"
+    if on_hands >= 1:
+        return "Читатель в пути"
+    return "Начинающий читатель"
+
+
+def long_date(d):
+    return f"{d.day} {RU_MONTHS[d.month - 1]} {d.year}"
+
+
 def length_bucket(pages):
     return "short" if pages <= 300 else "medium" if pages <= 600 else "long"
 
@@ -204,7 +226,8 @@ DOCS["sched-shifts"] = dict(
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  username TEXT UNIQUE NOT NULL, name TEXT NOT NULL, email TEXT, password_hash TEXT NOT NULL);
+  username TEXT UNIQUE NOT NULL, name TEXT NOT NULL, email TEXT, password_hash TEXT NOT NULL,
+  avatar TEXT, bio TEXT NOT NULL DEFAULT '', created TEXT);
 CREATE TABLE IF NOT EXISTS loans(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL, book_id INTEGER NOT NULL,
@@ -215,6 +238,11 @@ CREATE TABLE IF NOT EXISTS favorites(
 CREATE TABLE IF NOT EXISTS messages(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT, email TEXT, text TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS friendships(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  requester_id INTEGER NOT NULL, addressee_id INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', created TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(requester_id, addressee_id));
 """
 
 
@@ -232,9 +260,48 @@ def close_db(_exc=None):
         con.close()
 
 
+def seed_social(con):
+    """Демо-друзья для аккаунта demo (создаются один раз)."""
+    demo = con.execute("SELECT id FROM users WHERE username='demo'").fetchone()
+    if not demo or con.execute("SELECT 1 FROM users WHERE username='anna'").fetchone():
+        return
+    today = date.today()
+    con.execute("UPDATE users SET bio=? WHERE id=? AND bio=''",
+                ("Читаю по вечерам и собираю любимые цитаты.", demo[0]))
+    people = [
+        ("anna", "Анна", "Люблю детективы и чай с лимоном.", [16, 17, 18, 2, 7]),
+        ("ilya", "Илья", "Фантастика по ночам, классика по выходным.", [14, 15, 24, 13, 8, 12]),
+        ("maria", "Мария", "Только классика, только бумажные книги.", [3, 4, 5, 19]),
+        ("sergey", "Сергей", "Новичок в клубе читателей.", [21]),
+    ]
+    ids = {}
+    for username, name, bio, read in people:
+        cur = con.execute("INSERT INTO users(username,name,email,password_hash,bio,created) VALUES(?,?,?,?,?,?)",
+                          (username, name, None, generate_password_hash("demo123"), bio,
+                           (today - timedelta(days=60)).isoformat()))
+        ids[username] = cur.lastrowid
+        for i, bid in enumerate(read):
+            taken = today - timedelta(days=30 + i * 9)
+            due = taken + timedelta(days=LOAN_DAYS)
+            con.execute("INSERT INTO loans(user_id,book_id,taken,due,returned_at) VALUES(?,?,?,?,?)",
+                        (cur.lastrowid, bid, taken.isoformat(), due.isoformat(), (due - timedelta(days=2)).isoformat()))
+    for who in ("anna", "ilya"):   # уже друзья demo
+        con.execute("INSERT INTO friendships(requester_id,addressee_id,status) VALUES(?,?,'accepted')",
+                    (demo[0], ids[who]))
+    # Мария ждёт ответа на заявку; Сергей пока не знаком с demo (его можно найти поиском)
+    con.execute("INSERT INTO friendships(requester_id,addressee_id,status) VALUES(?,?,'pending')",
+                (ids["maria"], demo[0]))
+
+
 def init_db():
     con = sqlite3.connect(DB_PATH)
     con.executescript(SCHEMA)
+    # миграция: если library.db создана старой версией сайта, добавляем новые колонки
+    cols = {r[1] for r in con.execute("PRAGMA table_info(users)")}
+    for col, ddl in (("avatar", "TEXT"), ("bio", "TEXT NOT NULL DEFAULT ''"), ("created", "TEXT")):
+        if col not in cols:
+            con.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
+    con.execute("UPDATE users SET created=date('now') WHERE created IS NULL")
     if not con.execute("SELECT 1 FROM users WHERE username='demo'").fetchone():
         today = date.today()
         cur = con.execute("INSERT INTO users(username,name,email,password_hash) VALUES(?,?,?,?)",
@@ -253,6 +320,7 @@ def init_db():
                         (uid, bid, taken.isoformat(), due.isoformat(), back.isoformat()))
         for kind, item in [("book", 1), ("book", 9), ("book", 21), ("event", 1)]:
             con.execute("INSERT INTO favorites VALUES(?,?,?)", (uid, kind, item))
+    seed_social(con)
     con.commit()
     con.close()
 
@@ -267,22 +335,25 @@ def load_user():
     g.user = None
     uid = session.get("uid")
     if uid:
-        g.user = db().execute("SELECT id, username, name, email FROM users WHERE id=?", (uid,)).fetchone()
+        g.user = db().execute("SELECT id, username, name, email, avatar, bio, created FROM users WHERE id=?", (uid,)).fetchone()
         if g.user is None:
             session.clear()
 
 
 @app.context_processor
 def inject_globals():
-    favs, loaned = [], []
+    favs, loaned, pending = [], [], 0
     if g.user:
+        pending = db().execute("SELECT COUNT(*) FROM friendships WHERE addressee_id=? AND status='pending'",
+                               (g.user["id"],)).fetchone()[0]
         favs = [f"{r['kind']}:{r['item_id']}" for r in
                 db().execute("SELECT kind, item_id FROM favorites WHERE user_id=?", (g.user["id"],))]
         loaned = [r["book_id"] for r in
                   db().execute("SELECT book_id FROM loans WHERE user_id=? AND returned_at IS NULL", (g.user["id"],))]
     state = dict(user={"name": g.user["name"]} if g.user else None, favs=favs, loaned=loaned,
                  flashes=get_flashed_messages(with_categories=True))
-    return dict(current_user=g.user, sm_state=state, books_map={b["id"]: b for b in BOOKS})
+    return dict(current_user=g.user, sm_state=state, books_map={b["id"]: b for b in BOOKS},
+                pending_requests=pending)
 
 
 def login_required(view):
@@ -390,14 +461,7 @@ def my_books():
         dict(key="green", r=50, label="Осталось прочитать", pct=min(100, round(on_hands / MAX_LOANS * 100)),
              note=f"на руках {on_hands} из {MAX_LOANS}"),
     ]
-    if reads >= 25:
-        status = "Заядлый читатель"
-    elif on_hands >= 3:
-        status = "Сфокусированный читатель"
-    elif on_hands >= 1:
-        status = "Читатель в пути"
-    else:
-        status = "Начинающий читатель"
+    status = reader_status(reads, on_hands)
     return render_template("my-books.html", active=active, overdue=overdue, rings=rings, status=status,
                            has_any=bool(rows), max_loans=MAX_LOANS)
 
@@ -482,6 +546,10 @@ def login():
             session.clear()
             session["uid"] = user["id"]
             flash(f"С возвращением, {user['name']}!", "success")
+            n = db().execute("SELECT COUNT(*) FROM friendships WHERE addressee_id=? AND status='pending'",
+                             (user["id"],)).fetchone()[0]
+            if n:
+                flash(f"Новых заявок в друзья: {n}. Загляните в профиль", "info")
             return redirect(nxt)
         flash("Неверное имя пользователя или пароль", "error")
     return render_template("auth.html", mode="login", next=nxt, form=request.form)
@@ -514,13 +582,14 @@ def register():
         if error:
             flash(error, "error")
         else:
-            cur = db().execute("INSERT INTO users(username,name,email,password_hash) VALUES(?,?,?,?)",
-                               (username, name, email, generate_password_hash(pw)))
+            cur = db().execute("INSERT INTO users(username,name,email,password_hash,created) VALUES(?,?,?,?,?)",
+                               (username, name, email, generate_password_hash(pw), date.today().isoformat()))
             db().commit()
             session.clear()
             session["uid"] = cur.lastrowid
-            flash("Аккаунт создан. Добро пожаловать в библиотеку!", "success")
-            return redirect(nxt)
+            flash("Аккаунт создан! Добавьте фото и пару слов о себе", "success")
+            # после регистрации ведём в профиль (если человек не шёл на другую страницу)
+            return redirect("/profile#settings" if nxt == "/" else nxt)
     return render_template("auth.html", mode="register", next=nxt, form=request.form)
 
 
@@ -665,6 +734,276 @@ def api_contact():
     db().execute("INSERT INTO messages(name,email,text) VALUES(?,?,?)", (name[:80], email[:120], text[:2000]))
     db().commit()
     return jsonify(ok=True, message="Сообщение отправлено. Мы ответим в рабочее время")
+
+
+# ------------------------------------------------------------------ профиль ----
+AVATAR_RE = re.compile(r"[0-9]+_[0-9a-f]{16}\.(png|jpg|webp)")
+
+
+def sniff_image(data):
+    """Определяем формат по первым байтам файла, а не по расширению."""
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "jpg"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "webp"
+    return None
+
+
+def delete_avatar_file(filename):
+    if filename and AVATAR_RE.fullmatch(filename):
+        try:
+            os.remove(os.path.join(UPLOAD_DIR, filename))
+        except OSError:
+            pass
+
+
+def user_stats(uid):
+    con = db()
+    reads = con.execute("SELECT COUNT(DISTINCT book_id) FROM loans WHERE user_id=? AND returned_at IS NOT NULL",
+                        (uid,)).fetchone()[0]
+    on_hands = con.execute("SELECT COUNT(*) FROM loans WHERE user_id=? AND returned_at IS NULL", (uid,)).fetchone()[0]
+    fav_books = con.execute("SELECT COUNT(*) FROM favorites WHERE user_id=? AND kind='book'", (uid,)).fetchone()[0]
+    friends = con.execute("SELECT COUNT(*) FROM friendships WHERE status='accepted' AND (requester_id=? OR addressee_id=?)",
+                          (uid, uid)).fetchone()[0]
+    rows = con.execute("SELECT book_id, MAX(returned_at) AS m FROM loans WHERE user_id=? AND returned_at IS NOT NULL "
+                       "GROUP BY book_id ORDER BY m DESC", (uid,)).fetchall()
+    genres = Counter(BOOK[r["book_id"]]["genre"] for r in rows)
+    return dict(reads=reads, on_hands=on_hands, favs=fav_books, friends=friends,
+                recent=[r["book_id"] for r in rows[:6]],
+                top_genre=genres.most_common(1)[0][0] if genres else "—")
+
+
+def relation(me, other):
+    """Как связаны два читателя: none / sent / incoming / friends."""
+    f = db().execute("SELECT id, requester_id, status FROM friendships "
+                     "WHERE (requester_id=? AND addressee_id=?) OR (requester_id=? AND addressee_id=?)",
+                     (me, other, other, me)).fetchone()
+    if f is None:
+        return dict(state="none", id=None)
+    if f["status"] == "accepted":
+        return dict(state="friends", id=f["id"])
+    return dict(state="sent" if f["requester_id"] == me else "incoming", id=f["id"])
+
+
+_PEOPLE_SQL = """
+SELECT f.id AS fid, u.id, u.username, u.name, u.avatar, u.bio,
+       (SELECT COUNT(DISTINCT book_id) FROM loans WHERE user_id=u.id AND returned_at IS NOT NULL) AS reads
+FROM friendships f
+JOIN users u ON u.id = CASE WHEN f.requester_id=? THEN f.addressee_id ELSE f.requester_id END
+WHERE {where} ORDER BY u.name"""
+
+
+def friends_of(uid):
+    return db().execute(_PEOPLE_SQL.format(where="f.status='accepted' AND (f.requester_id=? OR f.addressee_id=?)"),
+                        (uid, uid, uid)).fetchall()
+
+
+def incoming_requests(uid):
+    return db().execute(_PEOPLE_SQL.format(where="f.status='pending' AND f.addressee_id=?"),
+                        (uid, uid)).fetchall()
+
+
+def outgoing_requests(uid):
+    return db().execute(_PEOPLE_SQL.format(where="f.status='pending' AND f.requester_id=?"),
+                        (uid, uid)).fetchall()
+
+
+@app.route("/profile")
+@login_required
+def profile():
+    uid = g.user["id"]
+    stats = user_stats(uid)
+    created = date.fromisoformat(g.user["created"]) if g.user["created"] else date.today()
+    return render_template(
+        "profile.html", stats=stats, status=reader_status(stats["reads"], stats["on_hands"]),
+        since=long_date(created), friends=friends_of(uid),
+        incoming=incoming_requests(uid), outgoing=outgoing_requests(uid))
+
+
+@app.route("/profile/<username>")
+@login_required
+def user_profile(username):
+    other = db().execute("SELECT id, username, name, avatar, bio, created FROM users WHERE username=?",
+                         (username.lower(),)).fetchone()
+    if other is None:
+        abort(404)
+    if other["id"] == g.user["id"]:
+        return redirect("/profile")
+    stats = user_stats(other["id"])
+    created = date.fromisoformat(other["created"]) if other["created"] else date.today()
+    return render_template(
+        "user.html", other=other, stats=stats, status=reader_status(stats["reads"], stats["on_hands"]),
+        since=long_date(created), rel=relation(g.user["id"], other["id"]))
+
+
+@app.route("/avatar/<filename>")
+def avatar_file(filename):
+    if not AVATAR_RE.fullmatch(filename):
+        abort(404)
+    resp = send_from_directory(UPLOAD_DIR, filename, max_age=60 * 60 * 24 * 30)
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    return resp
+
+
+@app.errorhandler(413)
+def too_large(_e):
+    flash("Файл слишком большой: максимум 2 МБ", "error")
+    return redirect("/profile#settings")
+
+
+@app.post("/profile/edit")
+@login_required
+def profile_edit():
+    name = request.form.get("name", "").strip()
+    bio = request.form.get("bio", "").strip()
+    email = request.form.get("email", "").strip()
+    error = None
+    if not name or len(name) > 40:
+        error = "Имя должно быть от 1 до 40 символов"
+    elif len(bio) > 200:
+        error = "О себе: не больше 200 символов"
+    elif email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        error = "Проверьте адрес почты"
+    if error:
+        flash(error, "error")
+        return redirect("/profile#settings")
+    db().execute("UPDATE users SET name=?, bio=?, email=? WHERE id=?", (name, bio, email, g.user["id"]))
+    db().commit()
+    flash("Профиль сохранён", "success")
+    return redirect("/profile")
+
+
+@app.post("/profile/avatar")
+@login_required
+def profile_avatar():
+    f = request.files.get("avatar")
+    if not f or not f.filename:
+        flash("Сначала выберите фото", "error")
+        return redirect("/profile#settings")
+    data = f.read(AVATAR_MAX + 1)
+    if len(data) > AVATAR_MAX:
+        flash("Файл слишком большой: максимум 2 МБ", "error")
+        return redirect("/profile#settings")
+    ext = sniff_image(data)
+    if ext is None:
+        flash("Подойдут только фото в формате PNG, JPG или WebP", "error")
+        return redirect("/profile#settings")
+    filename = f"{g.user['id']}_{secrets.token_hex(8)}.{ext}"
+    with open(os.path.join(UPLOAD_DIR, filename), "wb") as out:
+        out.write(data)
+    delete_avatar_file(g.user["avatar"])
+    db().execute("UPDATE users SET avatar=? WHERE id=?", (filename, g.user["id"]))
+    db().commit()
+    flash("Фото обновлено", "success")
+    return redirect("/profile")
+
+
+@app.post("/profile/avatar/remove")
+@login_required
+def profile_avatar_remove():
+    delete_avatar_file(g.user["avatar"])
+    db().execute("UPDATE users SET avatar=NULL WHERE id=?", (g.user["id"],))
+    db().commit()
+    flash("Фото удалено", "info")
+    return redirect("/profile")
+
+
+@app.post("/profile/password")
+@login_required
+def profile_password():
+    cur_pw = request.form.get("current", "")
+    new_pw = request.form.get("new", "")
+    confirm = request.form.get("confirm", "")
+    row = db().execute("SELECT password_hash FROM users WHERE id=?", (g.user["id"],)).fetchone()
+    if not check_password_hash(row["password_hash"], cur_pw):
+        error = "Текущий пароль указан неверно"
+    elif len(new_pw) < 6:
+        error = "Новый пароль должен быть не короче 6 символов"
+    elif new_pw != confirm:
+        error = "Новые пароли не совпадают"
+    else:
+        error = None
+    if error:
+        flash(error, "error")
+        return redirect("/profile#settings")
+    db().execute("UPDATE users SET password_hash=? WHERE id=?", (generate_password_hash(new_pw), g.user["id"]))
+    db().commit()
+    flash("Пароль изменён", "success")
+    return redirect("/profile")
+
+
+# ------------------------------------------------------------------ друзья ----
+
+
+@app.get("/api/users/search")
+@login_required
+def api_users_search():
+    q = request.args.get("q", "").strip().lstrip("@").casefold()
+    if len(q) < 2:
+        return jsonify([])
+    rows = db().execute("SELECT id, username, name, avatar FROM users WHERE id != ? LIMIT 1000",
+                        (g.user["id"],)).fetchall()
+    result = []
+    for r in rows:
+        if q in r["username"] or q in r["name"].casefold():
+            rel = relation(g.user["id"], r["id"])
+            result.append(dict(id=r["id"], username=r["username"], name=r["name"], avatar=r["avatar"],
+                               state=rel["state"], fid=rel["id"]))
+            if len(result) >= 8:
+                break
+    return jsonify(result)
+
+
+@app.post("/api/friends/request")
+@login_required
+def api_friend_request():
+    username = str((request.get_json(silent=True) or {}).get("username", "")).strip().lower()
+    other = db().execute("SELECT id, name FROM users WHERE username=?", (username,)).fetchone()
+    if other is None:
+        return jsonify(ok=False, error="Читатель не найден"), 404
+    me = g.user["id"]
+    if other["id"] == me:
+        return jsonify(ok=False, error="Это вы сами :)"), 400
+    rel = relation(me, other["id"])
+    if rel["state"] == "friends":
+        return jsonify(ok=False, error="Вы уже друзья"), 409
+    if rel["state"] == "sent":
+        return jsonify(ok=False, error="Заявка уже отправлена"), 409
+    con = db()
+    if rel["state"] == "incoming":   # он уже звал нас в друзья: просто принимаем
+        con.execute("UPDATE friendships SET status='accepted' WHERE id=?", (rel["id"],))
+        con.commit()
+        return jsonify(ok=True, message=f"Теперь вы друзья с {other['name']}")
+    con.execute("INSERT INTO friendships(requester_id, addressee_id) VALUES(?, ?)", (me, other["id"]))
+    con.commit()
+    return jsonify(ok=True, message=f"Заявка отправлена: {other['name']}")
+
+
+@app.post("/api/friends/respond")
+@login_required
+def api_friend_respond():
+    d = request.get_json(silent=True) or {}
+    fid, act = d.get("id"), d.get("action")
+    me = g.user["id"]
+    row = db().execute("SELECT * FROM friendships WHERE id=? AND (requester_id=? OR addressee_id=?)",
+                       (fid, me, me)).fetchone() if isinstance(fid, int) else None
+    if row is None:
+        return jsonify(ok=False, error="Заявка не найдена"), 404
+    con = db()
+    if act == "accept":
+        if row["addressee_id"] != me or row["status"] != "pending":
+            return jsonify(ok=False, error="Эту заявку нельзя принять"), 409
+        con.execute("UPDATE friendships SET status='accepted' WHERE id=?", (fid,))
+        message = "Теперь вы друзья"
+    elif act in ("decline", "cancel", "remove"):
+        con.execute("DELETE FROM friendships WHERE id=?", (fid,))
+        message = {"decline": "Заявка отклонена", "cancel": "Заявка отменена", "remove": "Удалён из друзей"}[act]
+    else:
+        return jsonify(ok=False, error="Неизвестное действие"), 400
+    con.commit()
+    return jsonify(ok=True, message=message)
 
 
 if __name__ == "__main__":

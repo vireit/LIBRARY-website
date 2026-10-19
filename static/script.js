@@ -319,6 +319,61 @@
     if (r.ok) { toast(r.message, 'success'); form.text.value = ''; } else toast(r.error || 'Не удалось отправить', 'error');
   });
 
+  /* ---------- профиль: вкладки, друзья, аватар ---------- */
+  const avatarHTML = u => u.avatar
+    ? `<span class="av av-md"><img src="/avatar/${esc(u.avatar)}" alt=""></span>`
+    : `<span class="av av-md" style="--ah:${(u.id * 47) % 360}">${esc((u.name || '?')[0].toUpperCase())}</span>`;
+  const personRow = u => {
+    let btn;
+    if (u.state === 'none') btn = `<button class="btn btn-outline" type="button" data-friend-add="${esc(u.username)}">Добавить в друзья</button>`;
+    else if (u.state === 'incoming') btn = `<button class="btn btn-primary" type="button" data-friend-add="${esc(u.username)}">Принять заявку</button>`;
+    else btn = `<span class="rel-note ${u.state === 'friends' ? 'ok' : ''}">${u.state === 'sent' ? 'Заявка отправлена' : 'Уже друзья'}</span>`;
+    return `<div class="person"><a class="person-main" href="/profile/${esc(u.username)}">${avatarHTML(u)}<span><b>${esc(u.name)}</b><small>@${esc(u.username)}</small></span></a><div class="person-actions">${btn}</div></div>`;
+  };
+  const initTabs = () => {
+    const btns = $$('[data-tab]'); if (!btns.length) return;
+    const show = name => {
+      if (!$(`[data-panel="${name}"]`)) name = 'overview';
+      btns.forEach(b => { const on = b.dataset.tab === name; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+      $$('[data-panel]').forEach(p => { p.hidden = p.dataset.panel !== name; if (!p.hidden) prepare(p); });
+    };
+    const go = (name, scroll) => {
+      show(name); history.replaceState(null, '', '#' + name);
+      if (scroll) $('.tabs-bar').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    };
+    btns.forEach(b => b.addEventListener('click', () => go(b.dataset.tab)));
+    $$('[data-tab-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.tabGo, true)));
+    show(location.hash.slice(1) || 'overview');
+  };
+  const initFriendSearch = input => {
+    const box = $('#friendResults'); let timer, seq = 0;
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        const q = input.value.trim(), my = ++seq;
+        if (q.replace('@', '').length < 2) { box.innerHTML = ''; return; }
+        const list = await api('/api/users/search?q=' + encodeURIComponent(q));
+        if (my !== seq || !Array.isArray(list)) return;
+        box.innerHTML = list.length ? list.map(personRow).join('')
+          : '<p class="hint">Никого не нашли. Проверьте логин: он написан под именем в профиле друга.</p>';
+      }, 260);
+    });
+  };
+  const initAvatarForm = input => {
+    const preview = $('#avatarPreview'), save = $('#avatarSave');
+    input.addEventListener('change', () => {
+      const file = input.files[0]; if (!file) return;
+      if (file.size > 2 * 1024 * 1024) { toast('Файл больше 2 МБ, выберите другой', 'error'); input.value = ''; save.disabled = true; return; }
+      if (!/^image\/(png|jpeg|webp)$/.test(file.type)) { toast('Подойдут только PNG, JPG или WebP', 'error'); input.value = ''; save.disabled = true; return; }
+      preview.innerHTML = `<span class="av av-xl"><img src="${URL.createObjectURL(file)}" alt=""></span>`;
+      save.disabled = false;
+    });
+  };
+  const initBioCount = area => {
+    const out = $('#bioCount'), upd = () => { out.textContent = area.value.length + '/200'; };
+    area.addEventListener('input', upd); upd();
+  };
+
   /* ---------- общие обработчики ---------- */
   const action = async (btn, url, body) => {
     btn.disabled = true;
@@ -345,6 +400,10 @@
       if (location.pathname === '/my-books') { toastAfterReload(r.message); location.reload(); return; }
       toast(r.message, 'success'); openBook(id); return;
     }
+    const fadd = t.closest('[data-friend-add]');
+    if (fadd) return action(fadd, '/api/friends/request', { username: fadd.dataset.friendAdd });
+    const fact = t.closest('[data-friend-act]');
+    if (fact) { const [id, act] = fact.dataset.friendAct.split(':'); return action(fact, '/api/friends/respond', { id: +id, action: act }); }
     const inf = t.closest('[data-info]');
     if (inf) { const [k, id] = inf.dataset.info.split(':'); return openInfo(k, id); }
     const bk = t.closest('[data-book]');
@@ -385,6 +444,10 @@
     const hrs = $('#openNow'); if (hrs) initHours(hrs);
     const cf = $('#contactForm'); if (cf) initContact(cf);
     if ($('#authForm')) initAuth();
+    initTabs();
+    const fs = $('#friendSearch'); if (fs) initFriendSearch(fs);
+    const av = $('#avatarInput'); if (av) initAvatarForm(av);
+    const bio = $('#pBio'); if (bio) initBioCount(bio);
     prepare(document);
   });
 

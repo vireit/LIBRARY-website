@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avatar %}
+{% block title %}{{ other.name }} — Сфера Мысли{% endblock %}
+{% block content %}
+<section class="profile-head glass-card reveal">
+  <div class="avatar-xl-wrap">{{ avatar(other, 'xl') }}</div>
+  <div class="profile-main">
+    <h1>{{ other.name }}</h1>
+    <p class="handle">@{{ other.username }}</p>
+    <span class="status-pill">{{ status }}</span>
+    <p class="bio">{{ other.bio or 'Этот читатель пока ничего не рассказал о себе.' }}</p>
+    <p class="since">В библиотеке с {{ since }}</p>
+    <div class="btn-row">
+      {% if rel.state == 'none' %}
+        <button class="btn btn-primary" type="button" data-friend-add="{{ other.username }}">Добавить в друзья</button>
+      {% elif rel.state == 'incoming' %}
+        <button class="btn btn-primary" type="button" data-friend-act="{{ rel.id }}:accept">Принять заявку</button>
+        <button class="btn btn-ghost" type="button" data-friend-act="{{ rel.id }}:decline">Отклонить</button>
+      {% elif rel.state == 'sent' %}
+        <span class="rel-note">Заявка отправлена</span>
+        <button class="btn btn-ghost" type="button" data-friend-act="{{ rel.id }}:cancel">Отменить</button>
+      {% else %}
+        <span class="rel-note ok">Вы друзья</span>
+        <button class="btn btn-ghost" type="button" data-friend-act="{{ rel.id }}:remove">Удалить из друзей</button>
+      {% endif %}
+      <a class="btn btn-ghost" href="/profile#friends">Мои друзья</a>
+    </div>
+  </div>
+</section>
+
+<div class="stat-tiles">
+  <div class="stat-tile reveal"><b>{{ stats.reads }}</b><span>прочитано</span></div>
+  <div class="stat-tile reveal"><b>{{ stats.friends }}</b><span>{{ 'друг' if stats.friends % 10 == 1 and stats.friends != 11 else 'друга' if stats.friends % 10 in (2, 3, 4) and stats.friends not in (12, 13, 14) else 'друзей' }}</span></div>
+  <div class="stat-tile reveal"><b class="small">{{ stats.top_genre }}</b><span>любимый жанр</span></div>
+</div>
+
+{% if rel.state == 'friends' %}
+  <div class="section-head"><h2>Недавно прочитано</h2></div>
+  {% if stats.recent %}
+    <div class="grid-3 book-grid" data-books='{{ stats.recent|tojson }}'></div>
+  {% else %}
+    <div class="empty-state"><p>Прочитанных книг пока нет.</p></div>
+  {% endif %}
+{% else %}
+  <div class="empty-state"><p>Что читает {{ other.name }}, видят только друзья. Отправьте заявку, чтобы заглянуть на его полку.</p></div>
+{% endif %}
+{% endblock %}

@@ -5,3 +5,7 @@
 {% macro heart(kind, id) -%}
 <button class="heart" type="button" data-fav="{{ kind }}:{{ id }}" aria-label="В избранное">♡</button>
 {%- endmacro %}
+
+{% macro avatar(u, size='md') -%}
+{% if u.avatar %}<span class="av av-{{ size }}"><img src="/avatar/{{ u.avatar }}" alt="" loading="lazy"></span>{% else %}<span class="av av-{{ size }}" style="--ah:{{ (u.id * 47) % 360 }}">{{ u.name[0]|upper }}</span>{% endif %}
+{%- endmacro %}

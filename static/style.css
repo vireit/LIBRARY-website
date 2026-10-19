@@ -148,7 +148,7 @@ small{color:var(--dim)}
 .hero{display:grid;grid-template-columns:1.15fr .85fr;gap:50px;align-items:center;min-height:min(620px,72vh);padding:20px 0 40px}
 .hero h1{font-size:clamp(40px,5.6vw,76px);text-wrap:balance}
 .hero .lead{margin-bottom:6px}
-.poster{border-radius:30px;overflow:hidden;background: transparent;box-shadow:0 40px 90px rgba(0,0,0,.6),0 0 0 1px rgba(255,240,215,.25),0 0 80px rgba(201,169,110,.2);animation:float 7s ease-in-out infinite}
+.poster{border-radius:30px;overflow:hidden;background:transparent;box-shadow:none;animation:float 7s ease-in-out infinite}
 .poster img{width:100%;aspect-ratio:1.08;object-fit:cover}
 @keyframes float{50%{transform:translateY(-12px) rotate(-.6deg)}}
 .featured{display:grid;grid-template-columns:200px 1fr;gap:34px;align-items:center;padding:28px 34px;margin-top:10px}
@@ -389,6 +389,58 @@ small{color:var(--dim)}
 .reveal:not(.glass-card){transform:translateY(var(--ty,0px))}
 .reveal.in{opacity:1;--ty:0px}
 
+/* ---------- аватарки и профиль ---------- */
+.av{display:inline-grid;place-items:center;flex:none;border-radius:50%;overflow:hidden;font-family:var(--serif);font-weight:700;color:#fff;
+  background:linear-gradient(135deg,hsl(var(--ah,35) 55% 60%),hsl(calc(var(--ah,35) + 40) 50% 36%));border:1px solid rgba(255,240,215,.3)}
+.av img{width:100%;height:100%;object-fit:cover}
+.av-sm{width:34px;height:34px;font-size:17px}.av-md{width:52px;height:52px;font-size:24px}.av-xl{width:168px;height:168px;font-size:72px;border-width:2px}
+.user-link{position:relative;display:flex;align-items:center;gap:10px;text-decoration:none;border-radius:999px;padding-right:6px}
+.user-link:hover .uname,.user-link.active .uname{color:var(--brass-2)}
+.dot-badge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--red);color:#fff;font:700 12px/1 var(--sans)}
+.user-link .dot-badge{position:absolute;top:-6px;left:22px}
+.profile-head{display:grid;grid-template-columns:auto 1fr;gap:40px;align-items:center;padding:36px 40px}
+.avatar-xl-wrap{position:relative}
+.avatar-xl-wrap .av{box-shadow:0 20px 50px rgba(0,0,0,.5),0 0 0 6px rgba(201,169,110,.15)}
+.avatar-edit{position:absolute;right:6px;bottom:6px;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:linear-gradient(135deg,var(--brass-2),var(--brass));color:#1a1307;font-size:19px;cursor:pointer;transition:transform .2s}
+.avatar-edit:hover{transform:scale(1.1) rotate(-8deg)}
+.profile-main h1{font-size:clamp(34px,4.4vw,54px);margin-bottom:2px}
+.handle{color:var(--dim);margin-bottom:12px}
+.bio{margin-top:16px;max-width:560px;color:var(--muted);font-size:17px}
+.since{margin-top:8px;font-size:14px;color:var(--dim)}
+.rel-note{padding:8px 16px;border-radius:999px;border:1px dashed var(--line);color:var(--muted);font-size:14px}
+.rel-note.ok{color:var(--green);border-color:rgba(95,208,138,.5)}
+.stat-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:18px;margin:26px 0 10px}
+.stat-tile{padding:20px 22px;border-radius:18px;background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(14px)}
+.stat-tile b{display:block;font-family:var(--serif);font-size:42px;line-height:1;color:var(--brass-2)}
+.stat-tile b.small{font-size:26px;padding:8px 0 6px}
+.stat-tile span{font-size:14px;color:var(--muted)}
+.tabs-bar{display:flex;gap:6px;margin:46px 0 6px;padding:5px;width:fit-content;max-width:100%;overflow-x:auto;border-radius:999px;background:rgba(0,0,0,.28);border:1px solid var(--line)}
+.tabs-bar button{display:flex;align-items:center;gap:8px;padding:10px 24px;border-radius:999px;border:0;background:none;font-weight:600;font-size:15px;color:var(--muted);cursor:pointer;transition:.25s;white-space:nowrap}
+.tabs-bar button.on{background:linear-gradient(135deg,var(--brass-2),var(--brass));color:#1a1307}
+.tabs-bar button.on .dot-badge{background:#1a1307;color:var(--brass-2)}
+[data-panel][hidden]{display:none}
+.muted-line{color:var(--muted);margin:-20px 0 0}
+.friend-search{padding:26px 28px;margin-top:30px;transform:none}
+.friend-search input{width:100%;margin-top:12px;padding:14px 22px;border-radius:999px;border:1px solid var(--line);background:rgba(255,246,228,.07);transition:.25s}
+.friend-search input:focus{outline:none;border-color:var(--brass-2);box-shadow:0 0 0 4px rgba(236,212,157,.14)}
+.hint{font-size:13.5px;color:var(--dim);margin:8px 0}
+.people{display:grid;gap:12px;margin-top:14px}
+.person{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:12px 16px;border-radius:20px;background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(14px);transition:background .2s}
+.person:hover{background:var(--glass-2)}
+.person-main{display:flex;align-items:center;gap:14px;text-decoration:none;min-width:0}
+.person-main b{display:block;font-weight:600}
+.person-main small{display:block;font-size:13px}
+.person-actions{display:flex;gap:10px;flex-wrap:wrap}
+.person .btn{padding:9px 20px;font-size:14px}
+.settings-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:26px;margin-top:30px;align-items:start}
+.settings-card{padding:28px 30px;transform:none}
+.settings-card h3{font-size:28px;margin-bottom:18px}
+.settings-card:first-child{grid-column:1/-1}
+.avatar-edit-row{display:flex;gap:30px;align-items:center;flex-wrap:wrap}
+.file-btn{cursor:pointer}
+.count{float:right;font-size:12.5px;color:var(--dim)}
+.form-group input:disabled{opacity:.55;cursor:not-allowed}
+
 /* ---------- адаптив ---------- */
 @media (max-width:1020px){
   .grid-3{grid-template-columns:repeat(2,1fr)}
@@ -412,6 +464,11 @@ small{color:var(--dim)}
   .uname{max-width:none;flex:1}
 }
 @media (max-width:680px){
+  .profile-head{grid-template-columns:1fr;justify-items:center;text-align:center;padding:30px 22px}
+  .profile-head .btn-row{justify-content:center}
+  .settings-grid{grid-template-columns:1fr}
+  .av-xl{width:140px;height:140px;font-size:60px}
+  .person{justify-content:center;text-align:center}
   main{padding-top:30px}
   .grid-3,.grid-2,.collections{grid-template-columns:1fr}
   .featured{grid-template-columns:1fr;padding:24px}

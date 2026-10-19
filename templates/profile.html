@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avatar %}
+{% block title %}Мой профиль — Сфера Мысли{% endblock %}
+
+{% macro person(u, kind) %}
+<div class="person">
+  <a class="person-main" href="/profile/{{ u.username }}">
+    {{ avatar(u, 'md') }}
+    <span><b>{{ u.name }}</b><small>@{{ u.username }}{% if kind == 'friend' %} · прочитано: {{ u.reads }}{% endif %}</small></span>
+  </a>
+  <div class="person-actions">
+    {% if kind == 'incoming' %}
+      <button class="btn btn-primary" type="button" data-friend-act="{{ u.fid }}:accept">Принять</button>
+      <button class="btn btn-ghost" type="button" data-friend-act="{{ u.fid }}:decline">Отклонить</button>
+    {% elif kind == 'outgoing' %}
+      <button class="btn btn-ghost" type="button" data-friend-act="{{ u.fid }}:cancel">Отменить заявку</button>
+    {% else %}
+      <a class="btn btn-outline" href="/profile/{{ u.username }}">Профиль</a>
+      <button class="btn btn-ghost" type="button" data-friend-act="{{ u.fid }}:remove" aria-label="Удалить из друзей">Удалить</button>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{% block content %}
+<section class="profile-head glass-card reveal">
+  <div class="avatar-xl-wrap">
+    {{ avatar(current_user, 'xl') }}
+    <button class="avatar-edit" type="button" data-tab-go="settings" aria-label="Изменить фото">✎</button>
+  </div>
+  <div class="profile-main">
+    <h1>{{ current_user.name }}</h1>
+    <p class="handle">@{{ current_user.username }}</p>
+    <span class="status-pill">{{ status }}</span>
+    <p class="bio">{{ current_user.bio or 'Расскажите о себе: что вы любите читать?' }}</p>
+    <p class="since">В библиотеке с {{ since }}</p>
+    <div class="btn-row">
+      <button class="btn btn-primary" type="button" data-tab-go="settings">Редактировать профиль</button>
+      <a class="btn btn-ghost" href="/my-books">Мои книги</a>
+    </div>
+  </div>
+</section>
+
+<div class="stat-tiles">
+  <div class="stat-tile reveal"><b>{{ stats.reads }}</b><span>прочитано</span></div>
+  <div class="stat-tile reveal"><b>{{ stats.on_hands }}</b><span>на руках</span></div>
+  <div class="stat-tile reveal"><b>{{ stats.favs }}</b><span>в избранном</span></div>
+  <div class="stat-tile reveal"><b>{{ stats.friends }}</b><span>{{ 'друг' if stats.friends % 10 == 1 and stats.friends != 11 else 'друга' if stats.friends % 10 in (2, 3, 4) and stats.friends not in (12, 13, 14) else 'друзей' }}</span></div>
+</div>
+
+<div class="tabs-bar" role="tablist">
+  <button type="button" role="tab" data-tab="overview" class="on">Обзор</button>
+  <button type="button" role="tab" data-tab="friends">Друзья{% if incoming %}<span class="dot-badge">{{ incoming|length }}</span>{% endif %}</button>
+  <button type="button" role="tab" data-tab="settings">Настройки</button>
+</div>
+
+<section data-panel="overview">
+  <div class="section-head"><h2>Недавно прочитано</h2><a href="/read-books">Вся статистика</a></div>
+  {% if stats.recent %}
+    <div class="grid-3 book-grid" data-books='{{ stats.recent|tojson }}'></div>
+    <p class="muted-line">Любимый жанр: <b>{{ stats.top_genre }}</b></p>
+  {% else %}
+    <div class="empty-state big"><p>Пока нет прочитанных книг. Возьмите книгу в каталоге, прочитайте и сдайте её, и она появится здесь.</p><a class="btn btn-primary" href="/catalog">В каталог</a></div>
+  {% endif %}
+</section>
+
+<section data-panel="friends" hidden>
+  <div class="glass-card friend-search">
+    <h3>Найти читателя</h3>
+    <p class="hint">Введите логин или имя. Логин написан под именем в профиле друга (например, @anna).</p>
+    <input type="search" id="friendSearch" placeholder="Начните вводить логин или имя" autocomplete="off">
+    <div id="friendResults" class="people"></div>
+  </div>
+
+  {% if incoming %}
+  <div class="section-head"><h2>Заявки в друзья</h2></div>
+  <div class="people">{% for u in incoming %}{{ person(u, 'incoming') }}{% endfor %}</div>
+  {% endif %}
+
+  <div class="section-head"><h2>Мои друзья</h2></div>
+  {% if friends %}
+    <div class="people">{% for u in friends %}{{ person(u, 'friend') }}{% endfor %}</div>
+  {% else %}
+    <div class="empty-state"><p>Друзей пока нет. Найдите знакомых читателей через поиск выше.</p></div>
+  {% endif %}
+
+  {% if outgoing %}
+  <div class="section-head"><h2>Отправленные заявки</h2></div>
+  <div class="people">{% for u in outgoing %}{{ person(u, 'outgoing') }}{% endfor %}</div>
+  {% endif %}
+</section>
+
+<section data-panel="settings" hidden>
+  <div class="settings-grid">
+    <form class="glass-card settings-card" method="post" action="/profile/avatar" enctype="multipart/form-data">
+      <h3>Фото профиля</h3>
+      <div class="avatar-edit-row">
+        <div id="avatarPreview">{{ avatar(current_user, 'xl') }}</div>
+        <div>
+          <label class="btn btn-outline file-btn">Выбрать фото<input type="file" id="avatarInput" name="avatar" accept="image/png,image/jpeg,image/webp" hidden></label>
+          <p class="hint">PNG, JPG или WebP до 2 МБ. Лучше квадратное фото: оно обрезается по кругу.</p>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="avatarSave" type="submit" disabled>Сохранить фото</button>
+            {% if current_user.avatar %}<button class="btn btn-ghost" type="submit" formaction="/profile/avatar/remove" formnovalidate>Удалить фото</button>{% endif %}
+          </div>
+        </div>
+      </div>
+    </form>
+
+    <form class="glass-card settings-card" method="post" action="/profile/edit">
+      <h3>О себе</h3>
+      <div class="form-group"><label for="pName">Имя</label><input id="pName" name="name" type="text" required maxlength="40" value="{{ current_user.name }}"></div>
+      <div class="form-group"><label for="pBio">Пара слов о себе <span class="count" id="bioCount">0/200</span></label><textarea id="pBio" name="bio" rows="3" maxlength="200" placeholder="Что любите читать?">{{ current_user.bio }}</textarea></div>
+      <div class="form-group"><label for="pEmail">Почта</label><input id="pEmail" name="email" type="email" value="{{ current_user.email or '' }}"></div>
+      <div class="form-group"><label>Логин (изменить нельзя)</label><input type="text" value="@{{ current_user.username }}" disabled></div>
+      <button class="btn btn-primary" type="submit">Сохранить</button>
+    </form>
+
+    <form class="glass-card settings-card" method="post" action="/profile/password">
+      <h3>Смена пароля</h3>
+      <div class="form-group"><label for="pwCur">Текущий пароль</label><input id="pwCur" name="current" type="password" required autocomplete="current-password"></div>
+      <div class="form-group"><label for="pwNew">Новый пароль (минимум 6 символов)</label><input id="pwNew" name="new" type="password" required minlength="6" autocomplete="new-password"></div>
+      <div class="form-group"><label for="pwConf">Повторите новый пароль</label><input id="pwConf" name="confirm" type="password" required autocomplete="new-password"></div>
+      <button class="btn btn-outline" type="submit">Изменить пароль</button>
+    </form>
+  </div>
+</section>
+{% endblock %}
