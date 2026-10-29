@@ -19,6 +19,9 @@ from flask import (Flask, Response, abort, flash, g, get_flashed_messages,
                    jsonify, redirect, render_template, request, send_from_directory,
                    session)
 from werkzeug.security import check_password_hash, generate_password_hash
+import logging
+from logging.handlers import RotatingFileHandler
+import threading
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "library.db")
@@ -31,6 +34,12 @@ app.config.update(
 )
 app.json.ensure_ascii = False
 
+# Настройка логирования ошибок (для дашборда)
+handler = RotatingFileHandler(os.path.join(BASE_DIR, 'site_errors.log'), maxBytes=100000, backupCount=3)
+handler.setLevel(logging.ERROR)
+app.logger.addHandler(handler)
+app.logger.setLevel(logging.ERROR)
+
 # аватарки хранятся файлами в папке uploads/avatars
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads", "avatars")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -40,6 +49,7 @@ AVATAR_MAX = 2 * 1024 * 1024                         # сама аватарка
 LOAN_DAYS = 14      # на сколько дней выдаётся книга
 EXTEND_DAYS = 7     # на сколько дней можно продлить (один раз)
 MAX_LOANS = 7       # лимит книг на руках
+borrow_lock = threading.Lock()
 
 # ---------------------------------------------------------------- данные ----
 # id, название, автор, год, жанр, страниц, оттенок обложки, строка, описание, настроения, флаги
@@ -665,7 +675,6 @@ def api_favorite():
     con.commit()
     return jsonify(ok=True, fav=fav)
 
-
 @app.post("/api/borrow")
 @login_required
 def api_borrow():
@@ -675,18 +684,23 @@ def api_borrow():
         return jsonify(ok=False, error="Книга не найдена"), 404
     if book["soon"]:
         return jsonify(ok=False, error="Эта книга появится в наличии позже"), 409
+    
     con, uid = db(), g.user["id"]
-    if con.execute("SELECT 1 FROM loans WHERE user_id=? AND book_id=? AND returned_at IS NULL", (uid, bid)).fetchone():
-        return jsonify(ok=False, error="Эта книга уже у вас на руках"), 409
-    on_hands = con.execute("SELECT COUNT(*) FROM loans WHERE user_id=? AND returned_at IS NULL", (uid,)).fetchone()[0]
-    if on_hands >= MAX_LOANS:
-        return jsonify(ok=False, error=f"Лимит: {MAX_LOANS} книг одновременно. Сдайте одну из взятых"), 409
-    today = date.today()
-    due = today + timedelta(days=LOAN_DAYS)
-    con.execute("INSERT INTO loans(user_id,book_id,taken,due) VALUES(?,?,?,?)", (uid, bid, today.isoformat(), due.isoformat()))
-    con.commit()
+    
+    # Блокировка (чтобы двое не взяли одну книгу)
+    with borrow_lock:
+        if con.execute("SELECT 1 FROM loans WHERE user_id=? AND book_id=? AND returned_at IS NULL", (uid, bid)).fetchone():
+            return jsonify(ok=False, error="Эта книга уже у вас на руках"), 409
+        on_hands = con.execute("SELECT COUNT(*) FROM loans WHERE user_id=? AND returned_at IS NULL", (uid,)).fetchone()[0]
+        if on_hands >= MAX_LOANS:
+            return jsonify(ok=False, error=f"Лимит: {MAX_LOANS} книг одновременно"), 409
+        
+        today = date.today()
+        due = today + timedelta(days=LOAN_DAYS)
+        con.execute("INSERT INTO loans(user_id,book_id,taken,due) VALUES(?,?,?,?)", (uid, bid, today.isoformat(), due.isoformat()))
+        con.commit()
+        
     return jsonify(ok=True, message=f"«{book['title']}» ваша до {fmt_date(due)}")
-
 
 def _own_active_loan(loan_id):
     if not isinstance(loan_id, int):
@@ -1004,6 +1018,43 @@ def api_friend_respond():
         return jsonify(ok=False, error="Неизвестное действие"), 400
     con.commit()
     return jsonify(ok=True, message=message)
+
+
+
+
+@app.route("/admin")
+@login_required
+def admin_dashboard():
+    if g.user["username"] != "demo":
+        abort(403)
+        
+    con = db()
+    today = date.today()
+    
+    week_ago = (today - timedelta(days=7)).isoformat()
+    issued_this_week = con.execute("SELECT COUNT(*) FROM loans WHERE taken >= ?", (week_ago,)).fetchone()[0]
+    
+    overdue_loans = con.execute("""
+        SELECT l.book_id, u.username, l.due
+        FROM loans l JOIN users u ON l.user_id = u.id
+        WHERE l.returned_at IS NULL AND l.due < ?
+        ORDER BY l.due ASC
+    """, (today.isoformat(),)).fetchall()
+    
+    overdue_list = []
+    for r in overdue_loans:
+        b = BOOK.get(r["book_id"])
+        if b:
+            days = (today - date.fromisoformat(r["due"])).days
+            overdue_list.append({"title": b["title"], "username": r["username"], "days": days})
+
+    error_count = 0
+    log_path = os.path.join(BASE_DIR, 'site_errors.log')
+    if os.path.exists(log_path):
+        with open(log_path, 'r', encoding='utf-8') as f:
+            error_count = len(f.readlines())
+
+    return render_template("admin.html", issued=issued_this_week, overdue=overdue_list, errors=error_count)
 
 
 if __name__ == "__main__":

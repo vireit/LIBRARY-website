@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Дашборд — Сфера Мысли{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Панель управления</h1>
+  <p class="lead">Умный дашборд администратора. Данные обновляются в реальном времени.</p>
+</div>
+
+<div class="grid-3">
+  <div class="glass-card stat-tile reveal">
+    <h3>Выдано книг: <span style="color:var(--green)">{{ issued }}</span></h3>
+    <p>за последние 7 дней</p>
+  </div>
+  
+  <div class="glass-card stat-tile reveal" style="border-color: rgba(239,91,91,.5);">
+    <h3>Должники: <span style="color:var(--red)">{{ overdue|length }}</span></h3>
+    <p>просрочили срок</p>
+  </div>
+  
+  <div class="glass-card stat-tile reveal" style="border-color: rgba(242,193,78,.5);">
+    <h3>Ошибки на сайте: <span style="color:var(--yellow)">{{ errors }}</span></h3>
+    <p>требуют внимания</p>
+  </div>
+</div>
+
+<div class="section-head"><h2>Просроченные книги</h2></div>
+{% if overdue %}
+<div class="glass-card" style="padding: 20px; overflow-x: auto;">
+  <table style="width:100%; text-align:left; border-collapse: collapse;">
+    <thead>
+      <tr style="border-bottom: 1px solid var(--line);">
+        <th style="padding: 12px;">Книга</th>
+        <th style="padding: 12px;">Пользователь</th>
+        <th style="padding: 12px;">Насколько просрочено</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in overdue %}
+      <tr style="border-bottom: 1px solid var(--line);">
+        <td style="padding: 12px;">{{ item.title }}</td>
+        <td style="padding: 12px;">@{{ item.username }}</td>
+        <td style="padding: 12px; color: var(--red);">
+          Просрочено на {{ item.days }} {{ 'день' if item.days == 1 else 'дня' if item.days < 5 else 'дней' }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="glass-card" style="padding: 30px; text-align:center; color: var(--green);">
+  <h3>Отлично! Просроченных книг нет.</h3>
+</div>
+{% endif %}
+
+<div class="btn-row" style="margin-top: 30px;">
+    <a href="/" class="btn btn-ghost">← Вернуться на главную</a>
+</div>
+{% endblock %}
